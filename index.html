@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>บ้าน 3D — ร่างแรก</title>
+<style>
+  :root{--bg:#eef2f5;--ink:#1d2730;--acc:#0b7a5f}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);font-family:"Sarabun","Kanit","Prompt",system-ui,sans-serif;color:var(--ink)}
+  #app{position:fixed;inset:0}
+  canvas{display:block;touch-action:none}
+  .top{position:fixed;top:calc(8px + env(safe-area-inset-top));left:8px;right:8px;display:flex;flex-direction:column;gap:6px;z-index:5;pointer-events:none}
+  .title{font-weight:600;font-size:15px;background:#ffffffd9;padding:6px 10px;border-radius:10px;align-self:flex-start;pointer-events:auto}
+  .title small{font-weight:400;color:#5b6670}
+  .bar{display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto}
+  .bar button{font:inherit;font-size:14px;border:0;padding:9px 13px;border-radius:999px;background:#ffffffe6;color:var(--ink);box-shadow:0 1px 4px #0002;cursor:pointer}
+  .bar button.on{background:var(--acc);color:#fff}
+  .bar label{font-size:13px;background:#ffffffd9;padding:7px 10px;border-radius:999px;display:flex;align-items:center;gap:5px}
+  #info{position:fixed;left:8px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom));max-width:420px;margin:auto;background:#fff;border-radius:14px;box-shadow:0 4px 18px #0003;padding:12px 14px;z-index:6;display:none}
+  #info h3{margin:0 0 4px;font-size:17px}
+  #info p{margin:2px 0;font-size:14px;color:#44505a}
+  #info .tag{display:inline-block;background:#fff3cd;color:#7a5a00;border-radius:6px;padding:1px 7px;font-size:12px;margin-top:4px}
+  #info button{position:absolute;top:8px;right:10px;border:0;background:none;font-size:20px;color:#889}
+  .lbl{font-size:12px;background:#ffffffe0;border-radius:6px;padding:2px 6px;color:#1d2730;white-space:nowrap;text-align:center;line-height:1.25;pointer-events:none;box-shadow:0 1px 3px #0002}
+  .lbl b{font-weight:600}
+  .lbl span{color:#5b6670;font-size:11px}
+  .hs{font-size:11px;background:#ffcc33;border-radius:6px;padding:1px 5px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px #0003}
+  .note{position:fixed;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));font-size:11px;color:#5b6670;background:#ffffffc0;padding:3px 7px;border-radius:6px;z-index:4}
+  @media (max-width:500px){.bar button{padding:8px 11px;font-size:13px}.bar label{font-size:12px;padding:6px 8px}.title{font-size:14px}.title small{display:block}.note{display:none}}
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div class="top">
+  <div class="title">บ้าน 3 ชั้น <small>· โมเดลร่างแรกจากแบบ (บ้านจริงอาจต่างบางส่วน)</small></div>
+  <div class="bar" id="floors">
+    <button data-f="all" class="on">ทั้งหมด</button>
+    <button data-f="1">ชั้น 1</button>
+    <button data-f="2">ชั้น 2</button>
+    <button data-f="3">ชั้น 3</button>
+  </div>
+  <div class="bar">
+    <button id="mode">ผัง 2D</button>
+    <button id="solarBtn">☀ แผงโซลาร์</button>
+    <label><input type="checkbox" id="iso"> เฉพาะชั้นนี้</label>
+    <label><input type="checkbox" id="hsT" checked> จุดอุปกรณ์</label>
+  </div>
+</div>
+<div id="info"><button id="close">×</button><h3></h3><div class="body"></div></div>
+<div class="note">แตะห้อง / แผงโซลาร์ / จุดอุปกรณ์ เพื่อดูข้อมูล</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
