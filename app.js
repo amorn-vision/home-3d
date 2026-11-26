@@ -325,7 +325,7 @@ if (q.get('f')) state.floor = q.get('f') === 'all' ? 'all' : +q.get('f');
 if (q.get('mode') === 'plan') setMode('plan'); else apply();
 if (q.get('solar') === '1') focusSolar();
 if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; renderer.shadowMap.needsUpdate = true; requestRender(); }
-if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; }
+if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; apply(); }
 if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute = h * 60 + (m || 0); state.live = false; updateSun(); }
 { const sl = document.getElementById('tSl');
   sl.oninput = () => { state.minute = +sl.value; state.live = false; updateSun(); };
