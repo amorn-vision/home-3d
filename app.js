@@ -101,13 +101,13 @@ function setView(name) {
     const t = new THREE.Vector3(8.5, 4.6, 5.5), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
     persp.position.copy(t).addScaledVector(new THREE.Vector3(-17.5, 6.4, 21.5), k); controls.target.copy(t); controls.update(); apply(); return;
   }
-  const dirs = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0] };
+  const dirs = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0] };
   const d = dirs[name]; if (!d) return;
-  camera = ortho; ortho.up.set(0, 1, 0);
-  const a = innerWidth / innerHeight, wide = name === 'front' || name === 'back' ? 12 : 8.5;
+  camera = ortho; ortho.up.set(0, name === 'top' ? 0 : 1, name === 'top' ? -1 : 0);
+  const a = innerWidth / innerHeight, wide = name === 'front' || name === 'back' || name === 'top' ? 12 : 8.5;
   const hw = Math.max(wide, 6.5 * a), hh = hw / a;
   Object.assign(ortho, { left: -hw, right: hw, top: hh, bottom: -hh, zoom: 1 });
-  const tgt = new THREE.Vector3(name === 'front' || name === 'back' ? 10.15 : c.x, 5.0, c.z);
+  const tgt = new THREE.Vector3(name === 'front' || name === 'back' || name === 'top' ? 10.15 : c.x, name === 'top' ? 0 : 5.0, c.z);
   if (name === 'left' || name === 'right') tgt.x = name === 'left' ? 0 : 20.3;
   ortho.position.copy(tgt).add(new THREE.Vector3(...d).multiplyScalar(60));
   ortho.lookAt(tgt); ortho.updateProjectionMatrix();
@@ -164,23 +164,24 @@ document.getElementById('solarBtn').onclick = () => focusSolar();
 const info = document.getElementById('info');
 let selected = null;
 function highlight(objs) {
-  if (selected) for (const o of selected) o.material.emissive?.setHex(o.userData._em ?? 0);
+  if (selected) for (const o of selected) o.material.emissive?.setHex(0);
   selected = objs;
-  if (objs) for (const o of objs) { o.userData._em = o.material.emissive.getHex(); o.material.emissive.setHex(0x2f6f4f); }
+  if (objs) for (const o of objs) o.material.emissive.setHex(0x2f6f4f);
 }
 function showInfo(title, html) { info.querySelector('h3').textContent = title; info.querySelector('.body').innerHTML = html; info.style.display = 'block'; }
 function hideInfo() { info.style.display = 'none'; highlight(null); }
 document.getElementById('close').onclick = hideInfo;
 
-const panelMat = house.solar.children[0].material;
+const panelMats = []; house.solar.traverse(o => { if (o.isMesh && !panelMats.includes(o.material)) panelMats.push(o.material); });
 function solarInfo(p) {
-  showInfo('แผงโซลาร์เซลล์', `<p>18 แผง · 3 กลุ่ม × 6 แผง (3×2)</p>${p ? `<p>แผงที่ ${p.userData.panelIndex} · กลุ่ม ${p.userData.group}</p>` : ''}<p>ระบบ: Sigenergy SigenStor (ข้อมูลกำลังผลิตจริงจะต่อในขั้นถัดไป)</p><span class="tag">ตำแหน่งแผงประมาณจากภาพโดรน</span>`);
+  const S = data.solar, list = (S.strings || []).map(s => s.label).join('<br>');
+  showInfo(p ? (p.userData.stringLabel || 'แผงโซลาร์เซลล์') : 'แผงโซลาร์เซลล์', `<p>รวม ${S.count} แผง${S.kWp ? ' · ' + S.kWp + ' kWp' : ''} · ${(S.strings || []).length} สตริง</p>${p ? `<p>แผงที่ ${p.userData.panelIndex}</p>` : `<p>${list}</p>`}<p>ระบบ: Sigenergy SigenStor (ข้อมูลกำลังผลิตจริงจะต่อในขั้นถัดไป)</p><span class="tag">ตำแหน่งแผงโดยประมาณจากภาพโดรน</span>`);
 }
 function focusSolar() {
   state.floor = 'all'; if (state.mode === 'plan') setMode('3d'); apply();
   persp.position.set(CENTER.x + 4, 26, CENTER.z + 14); controls.target.set(8.7, 9.5, 5.4); controls.update();
-  const em = panelMat.emissive.getHex(); highlight(null);
-  panelMat.emissive.setHex(0x1f4f8f); setTimeout(() => panelMat.emissive.setHex(em), 1500);
+  highlight(null);
+  panelMats.forEach(m => m.emissive.setHex(0x1f4f8f)); setTimeout(() => panelMats.forEach(m => m.emissive.setHex(0)), 1500);
   solarInfo(null);
 }
 
@@ -199,7 +200,7 @@ renderer.domElement.addEventListener('pointerup', e => {
     const r = u.room; const [x0, z0, x1, z1] = r.rect;
     highlight([o]);
     showInfo(r.name, `<p>${levels[r.floor].name}</p><p>พื้นที่ตามแบบ: ${r.area ? r.area.toFixed(2) + ' ตร.ม.' : 'ไม่ระบุ'}</p><p style="font-size:12px">ขนาดโมเดล ≈ ${(x1 - x0).toFixed(2)} × ${(z1 - z0).toFixed(2)} ม.</p>`);
-  } else if (u.pick === 'solar') { highlight(null); solarInfo(o); }
+  } else if (u.pick === 'solar') { highlight([...o.parent.children]); solarInfo(o); }
   else if (u.pick === 'hotspot') {
     const h = u.hotspot; highlight(null);
     showInfo(h.label, `<p>${levels[h.floor].name} · ประเภท: ${h.type}</p>${h.placeholder ? '<span class="tag">ตำแหน่งตัวอย่าง — ยังไม่ใช่ตำแหน่งจริง</span>' : ''}`);
@@ -240,3 +241,5 @@ window.exportGLB = async () => {
   return btoa(s);
 };
 window.__ready = true;
+// test helper: screen position of the first panel of a string
+window.__panelScreen = id => { const g = house.solar.getObjectByName('string-' + id); if (!g) return null; const v = new THREE.Vector3(); g.children[0].getWorldPosition(v); v.project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
