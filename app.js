@@ -119,10 +119,12 @@ function fitOrtho() {
 }
 
 // ---------- elevation / named views ----------
+let CAM_PRESET = null; // ?cam=x,y,z,tx,ty,tz (review shots)
 function setView(name) {
   state.floor = 'all'; state.mode = '3d'; state.elev = name !== 'persp-fl';
   const c = new THREE.Vector3(10.15, 0, 5.45);
-  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[17.35, 1.0, 7.4], [17.5, 3.4, 4.4]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[13.0, 1.7, 13.6], [13.4, 1.45, 10]], 'ev-charger': [[14.75, 2.5, 9.7], [14.85, 0.75, 6.9]], 'carport-cars': [[17.4, 3.0, 13.2], [17.3, 0.9, 6.0]], 'cars-top': [[17.4, 2.95, 9.6], [17.3, 0.4, 4.8]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[4.5, 1.7, 25], [11.5, 4.2, 6.5]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
+  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[17.35, 1.0, 7.4], [17.5, 3.4, 4.4]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[13.0, 1.7, 13.6], [13.4, 1.45, 10]], 'ev-charger': [[14.75, 2.6, 9.2], [14.85, 0.75, 5.4]], 'carport-cars': [[17.4, 3.0, 13.2], [17.3, 0.9, 6.0]], 'cars-top': [[17.4, 2.95, 9.6], [17.3, 0.4, 4.8]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[4.5, 1.7, 25], [11.5, 4.2, 6.5]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
+  if (name === 'cam' && CAM_PRESET) PRESETS.cam = CAM_PRESET;
   if (PRESETS[name]) {
     state.elev = false; camera = persp; makeControls();
     const [pos, tgt] = PRESETS[name], t = new THREE.Vector3(...tgt), dir = new THREE.Vector3(...pos).sub(t), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
@@ -225,7 +227,7 @@ function apply() {
   const maxF = f === 'all' ? 4 : f;
   for (const [id, g] of Object.entries(house.floorGroups)) g.visible = +id <= maxF && !(state.iso && +id < maxF);
   house.roofGroup.visible = f === 'all';
-  house.boundary.visible = !state.elev;
+  house.boundary.visible = !state.elev && !state.noFence;
   for (const pw of Object.values(house.planWalls)) pw.visible = state.mode === 'plan';
   renderer.clippingPlanes = f === 'all' ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), levels[f].elevation + 1.3)];
   for (const l of roomLabels) l.visible = f !== 'all' && l.userData.floor === f;
@@ -331,6 +333,9 @@ if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute
 { const sl = document.getElementById('tSl');
   sl.oninput = () => { state.minute = +sl.value; state.live = false; updateSun(); };
   document.getElementById('tNow').onclick = () => { state.live = true; updateSun(); }; }
+if (q.get('fence') === '0') { state.noFence = true; house.root.traverse(o => { if (/ประตูรั้วบานเลื่อนระแนงดำ หน้า|ช่วงรั้วจอด/.test(o.name)) o.visible = false; }); apply(); renderer.shadowMap.needsUpdate = true; } // review only: hide boundary fence/gates
+if (q.get('isolate') === 'cars') { house.root.traverse(o => { if (o.isMesh || o.isLine || o.isPoints) { let p = o, keep = false; while (p) { if (p === house.cars || p.name === 'ev-charger') { keep = true; break; } p = p.parent; } if (!keep) o.visible = false; } }); renderer.shadowMap.needsUpdate = true; } // review only: cars + charger alone
+if (q.get('cam')) { const v = q.get('cam').split(',').map(Number); if (v.length === 6) { CAM_PRESET = [v.slice(0, 3), v.slice(3)]; setView('cam'); } }
 if (q.get('view')) setView(q.get('view'));
 
 // ---------- GLB export (used by tools/shoot.mjs) ----------
