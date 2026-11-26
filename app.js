@@ -122,7 +122,7 @@ function fitOrtho() {
 function setView(name) {
   state.floor = 'all'; state.mode = '3d'; state.elev = name !== 'persp-fl';
   const c = new THREE.Vector3(10.15, 0, 5.45);
-  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[19.7, 0.9, 7.6], [17.9, 3.4, 4.6]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[13.0, 1.7, 13.6], [13.4, 1.45, 10]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[4.5, 1.7, 25], [11.5, 4.2, 6.5]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
+  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[17.35, 1.0, 7.4], [17.5, 3.4, 4.4]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[13.0, 1.7, 13.6], [13.4, 1.45, 10]], 'ev-charger': [[14.75, 2.5, 9.7], [14.85, 0.75, 6.9]], 'carport-cars': [[17.4, 3.0, 13.2], [17.3, 0.9, 6.0]], 'cars-top': [[17.4, 2.95, 9.6], [17.3, 0.4, 4.8]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[4.5, 1.7, 25], [11.5, 4.2, 6.5]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
   if (PRESETS[name]) {
     state.elev = false; camera = persp; makeControls();
     const [pos, tgt] = PRESETS[name], t = new THREE.Vector3(...tgt), dir = new THREE.Vector3(...pos).sub(t), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
@@ -324,7 +324,8 @@ if (q.get('iso') === '1') { state.iso = true; document.getElementById('iso').che
 if (q.get('f')) state.floor = q.get('f') === 'all' ? 'all' : +q.get('f');
 if (q.get('mode') === 'plan') setMode('plan'); else apply();
 if (q.get('solar') === '1') focusSolar();
-if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; renderer.shadowMap.needsUpdate = true; requestRender(); }
+if (q.get('cars')) { house.cars.visible = q.get('cars') !== '0'; document.getElementById('carT').checked = house.cars.visible; renderer.shadowMap.needsUpdate = true; requestRender(); }
+if (q.get('ev') && house.ev?.setState) { house.ev.setState(q.get('ev')); requestRender(); } // test override: charging | plugged | off (static glow here; pulse lives in the solar app)
 if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; apply(); }
 if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute = h * 60 + (m || 0); state.live = false; updateSun(); }
 { const sl = document.getElementById('tSl');
