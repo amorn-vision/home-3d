@@ -17,7 +17,7 @@ function setPalette(p = {}) {
   const std = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: new THREE.Color(c), roughness: 0.85 }, o));
   Object.assign(MAT, {
     wall: std(P.white, { roughness: 0.92 }), partition: std('#fbfbfa'), white: std(P.white),
-    accent: std(P.accent), slate: std(P.slate), louver: std(P.louver, { roughness: 0.6 }),
+    accent: std(P.accent), slate: std(P.slate), voidSlate: std(P.voidSlate || '#4f5a66', { roughness: 0.9 }), louver: std(P.louver, { roughness: 0.6 }),
     band: std(P.accent), frame: std(P.white, { roughness: 0.5 }),
     glass: std(P.glass, { roughness: 0.08, metalness: 0.15, transparent: true, opacity: 0.72 }),
     rail: std(P.metal, { roughness: 0.4, metalness: 0.4 }), metal: std(P.metal, { roughness: 0.4, metalness: 0.4 }),
@@ -333,6 +333,7 @@ export function buildHouse(data) {
   roofPivot.add(box(0.06, 0.22, D, MAT.fascia, W / 2, 0.02, 0));
   roofPivot.add(box(0.06, 0.22, D, MAT.fascia, -W / 2, 0.02, 0));
   roofGroup.add(roofPivot);
+  roofPivot.traverse(o => { if (o.isMesh && o.parent === roofPivot) o.castShadow = false; });
   // fill between floor-3 wall top (+9.20) and the sloped roof underside; thin clerestory glass strip at the high (front) side
   const under = z => rf.lowY + 0.04 + (rf.highSide === 'front' ? (z - rz0) : (rz1 - z)) / depth * rise;
   const wedge = (x0, x1, z0, z1) => {
@@ -340,13 +341,15 @@ export function buildHouse(data) {
     sh.moveTo(z0, 9.2); sh.lineTo(z1, 9.2); sh.lineTo(z1, under(z1)); sh.lineTo(z0, under(z0)); sh.closePath();
     const geo = new THREE.ExtrudeGeometry(sh, { depth: x1 - x0, bevelEnabled: false });
     const m = new THREE.Mesh(geo, MAT.wall); m.rotation.y = -Math.PI / 2; m.position.x = x1; // shape x→ world z
-    m.castShadow = true; m.receiveShadow = true; m.name = 'roof-gable-fill'; roofGroup.add(m);
+    m.castShadow = false; m.receiveShadow = true; m.name = 'roof-gable-fill'; roofGroup.add(m);
   };
   wedge(3.00, 14.45, 1.90, 9.00); wedge(0.90, 3.00, 3.00, 6.40);
-  const zf = 9.005, clerTop = under(zf) - 0.1;
-  const cl = bb(3.4, 9.32, zf, 14.05, clerTop, zf + 0.02, MAT.glass); cl.name = 'clerestory'; roofGroup.add(cl);
-  for (let x = 3.4; x <= 14.06; x += (14.05 - 3.4) / 8) roofGroup.add(bb(x - 0.03, 9.26, zf, x + 0.03, clerTop, zf + 0.05, MAT.frame));
-  roofGroup.add(bb(3.4, 9.26, zf, 14.05, 9.32, zf + 0.05, MAT.frame));
+  // front fascia band (blue-grey) between floor-3 top and roof; bump-out top white with grey cap
+  if (rf.frontFascia) {
+    const zf = 9.0, top = under(zf + 0.08);
+    const fb = bb(rf.frontFascia.from, 9.18, zf, rf.frontFascia.to, top, zf + 0.08, fmat(rf.frontFascia.color)); fb.name = 'front-fascia'; roofGroup.add(fb);
+  }
+  roofGroup.add(Object.assign(bb(0.86, 9.18, 3.0, 3.0, 9.30, 6.46, MAT.louver), { name: 'bumpout-cap' }));
 
   // ---------- solar panels ----------
   const sol = data.solar;
