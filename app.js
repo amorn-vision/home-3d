@@ -98,7 +98,8 @@ function setView(name) {
   const c = new THREE.Vector3(10.15, 0, 5.45);
   if (name === 'persp-fl') {
     camera = persp; makeControls();
-    persp.position.set(-9, 11, 27); controls.target.set(8.5, 4.6, 5.5); controls.update(); apply(); return;
+    const t = new THREE.Vector3(8.5, 4.6, 5.5), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
+    persp.position.copy(t).addScaledVector(new THREE.Vector3(-17.5, 6.4, 21.5), k); controls.target.copy(t); controls.update(); apply(); return;
   }
   const dirs = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0] };
   const d = dirs[name]; if (!d) return;
