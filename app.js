@@ -22,8 +22,10 @@ el.appendChild(labelRenderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdfe9f0);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8aa070, 1.4));
-const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb8c0b0, 1.5));
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const fill = new THREE.DirectionalLight(0xffffff, 0.9); fill.position.set(CENTER.x + 15, 12, CENTER.z - 20); scene.add(fill);
+const sun = new THREE.DirectionalLight(0xffffff, 1.8);
 sun.position.set(CENTER.x - 12, 25, CENTER.z + 14);
 sun.target.position.copy(CENTER);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
@@ -90,6 +92,28 @@ function fitOrtho() {
   ortho.zoom = 1; ortho.updateProjectionMatrix();
 }
 
+// ---------- elevation / named views ----------
+function setView(name) {
+  state.floor = 'all'; state.mode = '3d'; state.elev = name !== 'persp-fl';
+  const c = new THREE.Vector3(10.15, 0, 5.45);
+  if (name === 'persp-fl') {
+    camera = persp; makeControls();
+    persp.position.set(-9, 11, 27); controls.target.set(8.5, 4.6, 5.5); controls.update(); apply(); return;
+  }
+  const dirs = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0] };
+  const d = dirs[name]; if (!d) return;
+  camera = ortho; ortho.up.set(0, 1, 0);
+  const a = innerWidth / innerHeight, wide = name === 'front' || name === 'back' ? 12 : 8.5;
+  const hw = Math.max(wide, 6.5 * a), hh = hw / a;
+  Object.assign(ortho, { left: -hw, right: hw, top: hh, bottom: -hh, zoom: 1 });
+  const tgt = new THREE.Vector3(name === 'front' || name === 'back' ? 10.15 : c.x, 5.0, c.z);
+  if (name === 'left' || name === 'right') tgt.x = name === 'left' ? 0 : 20.3;
+  ortho.position.copy(tgt).add(new THREE.Vector3(...d).multiplyScalar(60));
+  ortho.lookAt(tgt); ortho.updateProjectionMatrix();
+  makeControls(); controls.enableRotate = false; controls.maxPolarAngle = Math.PI; controls.minPolarAngle = 0; controls.target.copy(tgt); controls.update(); apply();
+}
+window.setView = setView;
+
 // ---------- state ----------
 const state = { floor: 'all', mode: '3d', iso: false, showHs: true };
 const clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
@@ -98,8 +122,10 @@ function apply() {
   const maxF = f === 'all' ? 4 : f;
   for (const [id, g] of Object.entries(house.floorGroups)) g.visible = +id <= maxF && !(state.iso && +id < maxF);
   house.roofGroup.visible = f === 'all';
-  sun.castShadow = state.mode !== 'plan';
-  sun.intensity = state.mode === 'plan' ? 1.2 : 2.2;
+  sun.castShadow = state.mode !== 'plan' && !state.elev;
+  sun.intensity = state.mode === 'plan' ? 1.0 : 1.8;
+  house.boundary.visible = !state.elev;
+  for (const pw of Object.values(house.planWalls)) pw.visible = state.mode === 'plan';
   renderer.clippingPlanes = f === 'all' ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), levels[f].elevation + 1.3)];
   for (const l of roomLabels) l.visible = f !== 'all' && l.userData.floor === f;
   for (const h of hotspots) {
@@ -114,14 +140,15 @@ function apply() {
   document.getElementById('mode').classList.toggle('on', state.mode === 'plan');
 }
 function setMode(m) {
-  state.mode = m;
-  if (m === 'plan') { if (state.floor === 'all') state.floor = 1; camera = ortho; fitOrtho(); }
+  state.mode = m; state.elev = false;
+  if (m === 'plan') { if (state.floor === 'all') state.floor = 1; camera = ortho; ortho.up.set(0, 0, -1); fitOrtho(); }
   else camera = persp;
   makeControls(); apply();
 }
 
 document.querySelectorAll('#floors button').forEach(b => b.onclick = () => {
   state.floor = b.dataset.f === 'all' ? 'all' : +b.dataset.f;
+  if (state.elev) { state.elev = false; camera = persp; makeControls(); homeView(); }
   if (state.floor === 'all' && state.mode === 'plan') setMode('3d');
   if (state.floor === 'all' && state.mode === '3d') homeView();
   apply(); hideInfo();
@@ -129,6 +156,7 @@ document.querySelectorAll('#floors button').forEach(b => b.onclick = () => {
 document.getElementById('mode').onclick = () => setMode(state.mode === 'plan' ? '3d' : 'plan');
 document.getElementById('iso').onchange = e => { state.iso = e.target.checked; apply(); };
 document.getElementById('hsT').onchange = e => { state.showHs = e.target.checked; apply(); };
+document.getElementById('carT').onchange = e => { house.cars.visible = e.target.checked; };
 document.getElementById('solarBtn').onclick = () => focusSolar();
 
 // ---------- info / picking ----------
@@ -191,13 +219,16 @@ if (q.get('iso') === '1') { state.iso = true; document.getElementById('iso').che
 if (q.get('f')) state.floor = q.get('f') === 'all' ? 'all' : +q.get('f');
 if (q.get('mode') === 'plan') setMode('plan'); else apply();
 if (q.get('solar') === '1') focusSolar();
+if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; }
+if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; }
+if (q.get('view')) setView(q.get('view'));
 
 // ---------- GLB export (used by tools/shoot.mjs) ----------
 window.exportGLB = async () => {
   const { GLTFExporter } = await import('three/addons/GLTFExporter.js');
   const prev = { ...state }; state.floor = 'all'; state.iso = false; state.mode = '3d'; apply();
   const exp = new THREE.Group(); exp.name = 'home';
-  const h = house.root.clone(true); exp.add(h);
+  const h = house.root.clone(true); h.getObjectByName('cars')?.removeFromParent(); [1, 2, 3].forEach(i => h.getObjectByName('plan-walls-' + i)?.removeFromParent()); exp.add(h);
   const hs = new THREE.Group(); hs.name = 'hotspots';
   for (const m of hotspots) { const c = new THREE.Mesh(m.geometry, m.material); c.position.copy(m.position); c.name = m.name; c.userData = { hotspot: m.userData.hotspot }; hs.add(c); }
   exp.add(hs);
