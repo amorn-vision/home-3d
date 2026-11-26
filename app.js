@@ -334,7 +334,7 @@ if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute
   sl.oninput = () => { state.minute = +sl.value; state.live = false; updateSun(); };
   document.getElementById('tNow').onclick = () => { state.live = true; updateSun(); }; }
 if (q.get('fence') === '0') { state.noFence = true; house.root.traverse(o => { if (/ประตูรั้วบานเลื่อนระแนงดำ หน้า|ช่วงรั้วจอด/.test(o.name)) o.visible = false; }); apply(); renderer.shadowMap.needsUpdate = true; } // review only: hide boundary fence/gates
-if (q.get('isolate') === 'cars') { house.root.traverse(o => { if (o.isMesh || o.isLine || o.isPoints) { let p = o, keep = false; while (p) { if (p === house.cars || p.name === 'ev-charger') { keep = true; break; } p = p.parent; } if (!keep) o.visible = false; } }); renderer.shadowMap.needsUpdate = true; } // review only: cars + charger alone
+if (q.get('isolate') === 'cars' || q.get('isolate') === 'car') { house.root.traverse(o => { if (o.isMesh || o.isLine || o.isPoints) { let p = o, keep = false; while (p) { if (p === house.cars || (q.get('isolate') === 'cars' && p.name === 'ev-charger')) { keep = true; break; } if (q.get('isolate') === 'car' && p.name === 'ev-session') break; p = p.parent; } if (!keep) o.visible = false; } }); scene.traverse(o => { if (o.isCSS2DObject || o.isLine || o.isPoints || o.isSprite) o.visible = false; }); renderer.shadowMap.needsUpdate = true; } // review only: cars (+ charger) alone, overlays hidden
 if (q.get('cam')) { const v = q.get('cam').split(',').map(Number); if (v.length === 6) { CAM_PRESET = [v.slice(0, 3), v.slice(3)]; setView('cam'); } }
 if (q.get('view')) setView(q.get('view'));
 
