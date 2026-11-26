@@ -9,17 +9,41 @@ const levels = Object.fromEntries(data.levels.map(l => [l.id, l]));
 const CENTER = new THREE.Vector3(data.meta.lot.width / 2, 3.5, data.meta.lot.depth / 2);
 
 const el = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// ---- perf profile: phones / coarse pointers get a cheaper pipeline; desktop stays as before ----
+const MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: MOBILE ? 'low-power' : 'default' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = MOBILE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false; // the sun only moves on time change → re-bake shadows only then
 renderer.localClippingEnabled = false;
 el.appendChild(renderer.domElement);
 const labelRenderer = new CSS2DRenderer();
 labelRenderer.setSize(innerWidth, innerHeight);
 Object.assign(labelRenderer.domElement.style, { position: 'fixed', inset: '0', pointerEvents: 'none' });
 el.appendChild(labelRenderer.domElement);
+
+// ---------- render on demand (no continuous loop) ----------
+let raf = 0, onScreen = true, dragging = false, _lastZoom = 1, _endT = 0; window.__renders = 0;
+const _lastPos = new THREE.Vector3(), _lastQ = new THREE.Quaternion();
+function requestRender() { if (!raf && !document.hidden && onScreen) raf = requestAnimationFrame(frame); }
+function frame() {
+  raf = 0;
+  controls?.update(); // applies drag + damping
+  // keep rendering only while the camera visibly moves (OrbitControls' own epsilon is tiny → long damping tails)
+  const moved = camera.position.distanceToSquared(_lastPos) > 1e-6 || camera.quaternion.angleTo(_lastQ) > 5e-5 || (camera.zoom !== _lastZoom);
+  _lastPos.copy(camera.position); _lastQ.copy(camera.quaternion); _lastZoom = camera.zoom;
+  updateHud();
+  renderer.render(scene, camera); labelRenderer.render(scene, camera); window.__renders++;
+  if (moved && !dragging && performance.now() - _endT > 1500) { // cap the damping tail: flush the residual (sub-cm) and stop
+    controls.enableDamping = false; controls.update(); controls.enableDamping = true; renderer.render(scene, camera); labelRenderer.render(scene, camera); window.__renders++;
+    _lastPos.copy(camera.position); _lastQ.copy(camera.quaternion); return;
+  }
+  if (moved || dragging) requestRender();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+if ('IntersectionObserver' in window) new IntersectionObserver(es => { onScreen = es[0].isIntersecting; if (onScreen) requestRender(); }).observe(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdfe9f0);
@@ -29,7 +53,7 @@ const fill = new THREE.DirectionalLight(0xffffff, 0.9); fill.position.set(CENTER
 const sun = new THREE.DirectionalLight(0xffffff, 1.8);
 sun.position.set(CENTER.x - 12, 25, CENTER.z + 14);
 sun.target.position.copy(CENTER);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.castShadow = true; sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 });
 scene.add(sun, sun.target);
 
@@ -72,6 +96,7 @@ let camera = persp, controls;
 function makeControls() {
   controls?.dispose();
   controls = new OrbitControls(camera, renderer.domElement);
+  controls.addEventListener('change', requestRender); controls.addEventListener('start', () => { dragging = true; requestRender(); }); controls.addEventListener('end', () => { dragging = false; _endT = performance.now(); requestRender(); });
   controls.enableDamping = true;
   controls.target.copy(state.mode === 'plan' ? new THREE.Vector3(CENTER.x, 0, CENTER.z) : CENTER);
   if (state.mode === 'plan') {
@@ -169,6 +194,7 @@ function updateSun() {
   const side = p.altitude <= 0 ? 'ตกแล้ว' : (Math.cos(p.azimuth * Math.PI / 180) < 0 ? 'อ้อมทิศใต้' : 'อ้อมทิศเหนือ');
   const tl = document.getElementById('tLbl'); if (tl) tl.textContent = `${hh} น. · ☀ มุมสูง ${p.altitude.toFixed(0)}° · ทิศ ${p.azimuth.toFixed(0)}° (${side})`;
   const sl = document.getElementById('tSl'); if (sl && document.activeElement !== sl) sl.value = state.minute;
+  renderer.shadowMap.needsUpdate = true; requestRender();
 }
 // compass on the ground + HUD needle
 const NORTH = localDir(0, 0, FRONT_AZ);
@@ -232,7 +258,7 @@ document.querySelectorAll('#floors button').forEach(b => b.onclick = () => {
 document.getElementById('mode').onclick = () => setMode(state.mode === 'plan' ? '3d' : 'plan');
 document.getElementById('iso').onchange = e => { state.iso = e.target.checked; apply(); };
 document.getElementById('hsT').onchange = e => { state.showHs = e.target.checked; apply(); };
-document.getElementById('carT').onchange = e => { house.cars.visible = e.target.checked; };
+document.getElementById('carT').onchange = e => { house.cars.visible = e.target.checked; renderer.shadowMap.needsUpdate = true; requestRender(); };
 document.getElementById('solarBtn').onclick = () => focusSolar();
 
 // ---------- info / picking ----------
@@ -242,6 +268,7 @@ function highlight(objs) {
   if (selected) for (const o of selected) o.material.emissive?.setHex(0);
   selected = objs;
   if (objs) for (const o of objs) o.material.emissive.setHex(0x2f6f4f);
+  requestRender();
 }
 function showInfo(title, html) { info.querySelector('h3').textContent = title; info.querySelector('.body').innerHTML = html; info.style.display = 'block'; }
 function hideInfo() { info.style.display = 'none'; highlight(null); }
@@ -256,7 +283,7 @@ function focusSolar() {
   state.floor = 'all'; if (state.mode === 'plan') setMode('3d'); apply();
   persp.position.set(CENTER.x + 4, 26, CENTER.z + 14); controls.target.set(8.7, 9.5, 5.4); controls.update();
   highlight(null);
-  panelMats.forEach(m => m.emissive.setHex(0x1f4f8f)); setTimeout(() => panelMats.forEach(m => m.emissive.setHex(0)), 1500);
+  panelMats.forEach(m => m.emissive.setHex(0x1f4f8f)); setTimeout(() => { panelMats.forEach(m => m.emissive.setHex(0)); requestRender(); }, 1500);
   solarInfo(null);
 }
 
@@ -285,11 +312,11 @@ renderer.domElement.addEventListener('pointerup', e => {
 // ---------- loop ----------
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
-  persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); fitOrtho();
+  persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); fitOrtho(); requestRender();
 });
 homeView(); makeControls(); apply();
-let lastSunT = 0;
-renderer.setAnimationLoop(t => { if (state.live && t - lastSunT > 30000) { lastSunT = t; updateSun(); } updateHud(); controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); });
+setInterval(() => { if (state.live && !document.hidden) updateSun(); }, 30000); // live sun: one re-render per 30 s
+requestRender();
 
 // ---------- URL params (for sharing / screenshots) ----------
 const q = new URLSearchParams(location.search);
@@ -297,7 +324,7 @@ if (q.get('iso') === '1') { state.iso = true; document.getElementById('iso').che
 if (q.get('f')) state.floor = q.get('f') === 'all' ? 'all' : +q.get('f');
 if (q.get('mode') === 'plan') setMode('plan'); else apply();
 if (q.get('solar') === '1') focusSolar();
-if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; }
+if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; renderer.shadowMap.needsUpdate = true; requestRender(); }
 if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; }
 if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute = h * 60 + (m || 0); state.live = false; updateSun(); }
 { const sl = document.getElementById('tSl');
