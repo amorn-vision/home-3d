@@ -97,7 +97,7 @@ function fitOrtho() {
 function setView(name) {
   state.floor = 'all'; state.mode = '3d'; state.elev = name !== 'persp-fl';
   const c = new THREE.Vector3(10.15, 0, 5.45);
-  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[19.7, 0.9, 7.6], [17.9, 3.4, 4.6]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[2.9, 1.65, 12.6], [1.7, 1.45, 10]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[10.5, 1.8, 30], [9.8, 5.2, 6]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
+  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'carport-up': [[19.7, 0.9, 7.6], [17.9, 3.4, 4.6]], 'carport-street': [[17.5, 1.7, 17], [17.5, 2.4, 7]], 'side-wnw': [[31, 2.2, 6.5], [17, 5.2, 5.5]], 'entrance': [[13.0, 1.7, 13.6], [13.4, 1.45, 10]], 'corner48': [[18.9, 1.55, 12.9], [19.9, 1.15, 10]], 'street-fl': [[-2.5, 1.7, 21], [3, 7.5, 7]], 'drone-fl-low': [[-6, 14, 17], [3.5, 8.5, 6.5]], 'photo-front': [[4.5, 1.7, 25], [11.5, 4.2, 6.5]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
   if (PRESETS[name]) {
     state.elev = false; camera = persp; makeControls();
     const [pos, tgt] = PRESETS[name], t = new THREE.Vector3(...tgt), dir = new THREE.Vector3(...pos).sub(t), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
