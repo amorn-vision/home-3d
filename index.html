@@ -29,6 +29,12 @@
   .hs{font-size:11px;background:#ffcc33;border-radius:6px;padding:1px 5px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px #0003}
   .note{position:fixed;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));font-size:11px;color:#5b6670;background:#ffffffc0;padding:3px 7px;border-radius:6px;z-index:4}
   @media (max-width:500px){.bar button{padding:8px 11px;font-size:13px}.bar label{font-size:12px;padding:6px 8px}.title{font-size:14px}.title small{display:block}.note{display:none}.lbl{font-size:10px;padding:1px 4px}.lbl span,.lbl br{display:none}.hs{font-size:10px}}
+.hr{font-size:10px;color:#a85d00;background:#fff8e6cc;border-radius:4px;padding:0 3px;pointer-events:none}
+  .nlbl{font-weight:700;color:#d32f2f;font-size:14px;pointer-events:none;text-shadow:0 0 3px #fff}
+  #hud{position:fixed;right:10px;top:calc(10px + env(safe-area-inset-top));width:46px;height:46px;border-radius:50%;background:#ffffffe6;box-shadow:0 1px 4px #0003;z-index:6;display:flex;align-items:center;justify-content:center}
+  #hudN{width:20px;height:34px;display:flex;flex-direction:column;align-items:center;transition:transform .1s linear}
+  #hudN b{color:#d32f2f;font-size:11px;line-height:1}#hudN i{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:18px solid #d32f2f}
+  .sunbar label{font-size:12px}
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
@@ -51,7 +57,12 @@
     <label><input type="checkbox" id="hsT" checked> จุดอุปกรณ์</label>
     <label><input type="checkbox" id="carT"> รถ</label>
   </div>
+  <div class="bar sunbar">
+    <label style="flex:1;max-width:520px">☀ <input type="range" id="tSl" min="0" max="1439" step="5" style="flex:1"> <span id="tLbl"></span></label>
+    <button id="tNow">ตอนนี้</button>
+  </div>
 </div>
+<div id="hud" title="ทิศเหนือ"><div id="hudN"><b>N</b><i></i></div></div>
 <div id="info"><button id="close">×</button><h3></h3><div class="body"></div></div>
 <div class="note">แตะห้อง / แผงโซลาร์ / จุดอุปกรณ์ เพื่อดูข้อมูล</div>
 <script type="module" src="./app.js"></script>

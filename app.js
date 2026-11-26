@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/CSS2DRenderer.js';
-import { buildHouse } from './model.js';
+import { buildHouse, localDir } from './model.js';
+import { sunPosition, bkkDate, bkkMinute } from './sun.js';
 
 const data = await (await fetch('./data/house.json')).json();
 const levels = Object.fromEntries(data.levels.map(l => [l.id, l]));
@@ -109,8 +110,8 @@ function setView(name) {
   }
   const dirs = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0] };
   const d = dirs[name]; if (!d) return;
-  camera = ortho; ortho.up.set(0, name === 'top' ? 0 : 1, name === 'top' ? -1 : 0);
-  const a = innerWidth / innerHeight, wide = name === 'front' || name === 'back' || name === 'top' ? 12 : 8.5;
+  camera = ortho; if (name === 'top') ortho.up.set(NORTH.x, 0, NORTH.z); else ortho.up.set(0, 1, 0);
+  const a = innerWidth / innerHeight, wide = name === 'top' ? 14 : name === 'front' || name === 'back' ? 12 : 8.5;
   const hw = Math.max(wide, 6.5 * a), hh = hw / a;
   Object.assign(ortho, { left: -hw, right: hw, top: hh, bottom: -hh, zoom: 1 });
   const tgt = new THREE.Vector3(name === 'front' || name === 'back' || name === 'top' ? 10.15 : c.x, name === 'top' ? 0 : 5.0, c.z);
@@ -122,15 +123,81 @@ function setView(name) {
 window.setView = setView;
 
 // ---------- state ----------
-const state = { floor: 'all', mode: '3d', iso: false, showHs: true };
+const state = { floor: 'all', mode: '3d', iso: false, showHs: true, minute: bkkMinute(new Date()), live: true };
+
+// ---------- real sun (NOAA) + day arc + compass ----------
+const SITE = Object.assign({ frontAzimuthDeg: 30, lat: 13.75, lon: 100.5 }, data.site || {});
+const FRONT_AZ = SITE.frontAzimuthDeg;
+const GROUND_C = new THREE.Vector3(CENTER.x, 0, CENTER.z), ARC_R = 24;
+const sunGroup = new THREE.Group(); sunGroup.name = 'sun-path'; scene.add(sunGroup);
+const sunBall = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffb300 }));
+scene.add(sunBall);
+let arcKey = null;
+function buildArc(day) {
+  sunGroup.clear(); const pts = []; let rise = null, set = null;
+  for (let m = 0; m <= 1440; m += 5) {
+    const p = sunPosition(bkkDate(day, m), SITE.lat, SITE.lon);
+    if (p.altitude > -0.8) { pts.push(GROUND_C.clone().addScaledVector(localDir(p.azimuth, Math.max(p.altitude, 0), FRONT_AZ), ARC_R)); if (rise === null) rise = m; set = m; }
+  }
+  sunGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0xff9800, dashSize: 0.6, gapSize: 0.35 })));
+  sunGroup.children[0].computeLineDistances();
+  for (const m of [rise, set]) { const p = sunPosition(bkkDate(day, m), SITE.lat, SITE.lon); const d = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff7043 })); d.position.copy(GROUND_C).addScaledVector(localDir(p.azimuth, 0, FRONT_AZ), ARC_R); sunGroup.add(d); }
+  // hour ticks
+  for (let h = 7; h <= 17; h++) { const p = sunPosition(bkkDate(day, h * 60), SITE.lat, SITE.lon); if (p.altitude <= 0) continue;
+    const el = document.createElement('div'); el.className = 'hr'; el.textContent = h + ':00'; const o = new CSS2DObject(el); o.position.copy(GROUND_C).addScaledVector(localDir(p.azimuth, p.altitude, FRONT_AZ), ARC_R + 1.2); sunGroup.add(o); }
+  state.riseSet = [rise, set];
+}
+function updateSun() {
+  const today = new Date();
+  if (state.live) state.minute = bkkMinute(today);
+  const key = bkkDate(today, 0).getTime(); if (key !== arcKey) { arcKey = key; buildArc(today); }
+  const p = sunPosition(bkkDate(today, state.minute), SITE.lat, SITE.lon); state.sunNow = p;
+  const fixed = state.mode === 'plan' || state.elev;
+  sunGroup.visible = sunBall.visible = !fixed && p.altitude > 0 ? true : !fixed;
+  sunBall.visible = !fixed && p.altitude > 0;
+  if (fixed) { sun.position.set(CENTER.x - 12, 25, CENTER.z + 14); sun.intensity = state.mode === 'plan' ? 1.0 : 1.8; sun.castShadow = false; }
+  else {
+    const dir = localDir(p.azimuth, Math.max(p.altitude, 3), FRONT_AZ);
+    sun.position.copy(CENTER).addScaledVector(dir, 40);
+    sunBall.position.copy(GROUND_C).addScaledVector(localDir(p.azimuth, p.altitude, FRONT_AZ), ARC_R);
+    sun.intensity = p.altitude > 0 ? 0.6 + 1.6 * Math.min(1, p.altitude / 35) : 0.15;
+    sun.color.setHex(p.altitude > 0 && p.altitude < 12 ? 0xffd2a0 : 0xffffff);
+    sun.castShadow = p.altitude > 0;
+  }
+  const hh = String(Math.floor(state.minute / 60)).padStart(2, '0') + ':' + String(Math.floor(state.minute % 60)).padStart(2, '0');
+  const side = p.altitude <= 0 ? 'ตกแล้ว' : (Math.cos(p.azimuth * Math.PI / 180) < 0 ? 'อ้อมทิศใต้' : 'อ้อมทิศเหนือ');
+  const tl = document.getElementById('tLbl'); if (tl) tl.textContent = `${hh} น. · ☀ มุมสูง ${p.altitude.toFixed(0)}° · ทิศ ${p.azimuth.toFixed(0)}° (${side})`;
+  const sl = document.getElementById('tSl'); if (sl && document.activeElement !== sl) sl.value = state.minute;
+}
+// compass on the ground + HUD needle
+const NORTH = localDir(0, 0, FRONT_AZ);
+{
+  const cg = new THREE.Group(); cg.name = 'compass';
+  const pos = new THREE.Vector3(-3.2, 0.03, 12.2);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.15, 40), new THREE.MeshBasicMaterial({ color: 0x33414d, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; cg.add(ring);
+  const sh = new THREE.Shape(); sh.moveTo(0, 1.0); sh.lineTo(0.32, -0.55); sh.lineTo(0, -0.3); sh.lineTo(-0.32, -0.55); sh.closePath();
+  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color: 0xd32f2f, side: THREE.DoubleSide }));
+  arrow.rotation.x = -Math.PI / 2; arrow.rotation.z = Math.atan2(-NORTH.x, -NORTH.z) ; // shape +y → local -z after rotX; rotate to north
+  cg.add(arrow); cg.position.copy(pos);
+  const nl = document.createElement('div'); nl.className = 'nlbl'; nl.textContent = 'N';
+  const no = new CSS2DObject(nl); no.position.copy(NORTH).multiplyScalar(1.6); cg.add(no);
+  scene.add(cg);
+}
+const hud = document.getElementById('hudN');
+function updateHud() {
+  if (!hud) return;
+  const a = CENTER.clone().project(camera), b = CENTER.clone().add(NORTH.clone().multiplyScalar(5)).project(camera);
+  const dx = (b.x - a.x) * innerWidth, dy = -(b.y - a.y) * innerHeight;
+  if (Math.hypot(dx, dy) < 2) { hud.style.opacity = 0.3; return; } hud.style.opacity = 1;
+  hud.style.transform = `rotate(${Math.atan2(dx, -dy) * 180 / Math.PI}deg)`;
+}
 const clip = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
 function apply() {
   const f = state.floor === 'all' ? (state.mode === 'plan' ? 1 : 'all') : +state.floor;
   const maxF = f === 'all' ? 4 : f;
   for (const [id, g] of Object.entries(house.floorGroups)) g.visible = +id <= maxF && !(state.iso && +id < maxF);
   house.roofGroup.visible = f === 'all';
-  sun.castShadow = state.mode !== 'plan' && !state.elev;
-  sun.intensity = state.mode === 'plan' ? 1.0 : 1.8;
   house.boundary.visible = !state.elev;
   for (const pw of Object.values(house.planWalls)) pw.visible = state.mode === 'plan';
   renderer.clippingPlanes = f === 'all' ? [] : [new THREE.Plane(new THREE.Vector3(0, -1, 0), levels[f].elevation + 1.3)];
@@ -145,6 +212,7 @@ function apply() {
   document.querySelectorAll('#floors button').forEach(b => b.classList.toggle('on', b.dataset.f === String(state.floor) || (state.floor === 'all' && state.mode === 'plan' && b.dataset.f === '1')));
   document.getElementById('mode').textContent = state.mode === 'plan' ? 'มุม 3D' : 'ผัง 2D';
   document.getElementById('mode').classList.toggle('on', state.mode === 'plan');
+  updateSun();
 }
 function setMode(m) {
   state.mode = m; state.elev = false;
@@ -219,7 +287,8 @@ addEventListener('resize', () => {
   persp.aspect = innerWidth / innerHeight; persp.updateProjectionMatrix(); fitOrtho();
 });
 homeView(); makeControls(); apply();
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); });
+let lastSunT = 0;
+renderer.setAnimationLoop(t => { if (state.live && t - lastSunT > 30000) { lastSunT = t; updateSun(); } updateHud(); controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); });
 
 // ---------- URL params (for sharing / screenshots) ----------
 const q = new URLSearchParams(location.search);
@@ -229,6 +298,10 @@ if (q.get('mode') === 'plan') setMode('plan'); else apply();
 if (q.get('solar') === '1') focusSolar();
 if (q.get('cars') === '1') { house.cars.visible = true; document.getElementById('carT').checked = true; }
 if (q.get('hs') === '0') { state.showHs = false; document.getElementById('hsT').checked = false; }
+if (q.get('t')) { const [h, m] = q.get('t').split(':').map(Number); state.minute = h * 60 + (m || 0); state.live = false; updateSun(); }
+{ const sl = document.getElementById('tSl');
+  sl.oninput = () => { state.minute = +sl.value; state.live = false; updateSun(); };
+  document.getElementById('tNow').onclick = () => { state.live = true; updateSun(); }; }
 if (q.get('view')) setView(q.get('view'));
 
 // ---------- GLB export (used by tools/shoot.mjs) ----------
