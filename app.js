@@ -96,7 +96,7 @@ function fitOrtho() {
 function setView(name) {
   state.floor = 'all'; state.mode = '3d'; state.elev = name !== 'persp-fl';
   const c = new THREE.Vector3(10.15, 0, 5.45);
-  const PRESETS = { 'photo-front': [[10.5, 1.8, 30], [9.8, 5.2, 6]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
+  const PRESETS = { 'drone-fl': [[-5, 25, 23], [9, 8.5, 5.5]], 'photo-front': [[10.5, 1.8, 30], [9.8, 5.2, 6]], 'photo-front-right': [[25, 2.0, 17.5], [13, 5, 5]], 'photo-left': [[-8, 1.8, 11], [3, 5, 5.5]], 'photo-back': [[9, 2.2, -9], [9, 4.6, 3]] };
   if (PRESETS[name]) {
     state.elev = false; camera = persp; makeControls();
     const [pos, tgt] = PRESETS[name], t = new THREE.Vector3(...tgt), dir = new THREE.Vector3(...pos).sub(t), k = 1 / Math.min(1, (innerWidth / innerHeight) * 1.25);
